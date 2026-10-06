@@ -1,16 +1,13 @@
-from datetime import datetime
+from datetime import date
 from typing import List, Any
 
 def validar_contenido(campos: List[dict], contenido: Any) -> List[str]:
-    errores = []
-
     if not isinstance(contenido, dict):
-        return ["El contenido debe ser un objeto JSON (diccionario)"]
+        return ["el contenido debe ser un objeto JSON"]
 
-    # Campos declarados en el tipo de lote
+    errores = []
     campos_declarados = {c['nombre']: c for c in campos}
 
-    # Verificar campos obligatorios y tipos
     for campo in campos:
         nombre = campo['nombre']
         tipo_esperado = campo['tipo']
@@ -18,12 +15,11 @@ def validar_contenido(campos: List[dict], contenido: Any) -> List[str]:
 
         if nombre not in contenido:
             if obligatorio:
-                errores.append(f"Falta el campo obligatorio: {nombre}")
+                errores.append(f"{nombre} es obligatorio")
             continue
 
         valor = contenido[nombre]
 
-        # Validar tipo
         valido_tipo = True
         if tipo_esperado == "texto":
             if not isinstance(valor, str):
@@ -36,7 +32,7 @@ def validar_contenido(campos: List[dict], contenido: Any) -> List[str]:
                 valido_tipo = False
             else:
                 try:
-                    datetime.date.fromisoformat(valor)
+                    date.fromisoformat(valor)
                 except ValueError:
                     valido_tipo = False
         elif tipo_esperado == "booleano":
@@ -49,9 +45,8 @@ def validar_contenido(campos: List[dict], contenido: Any) -> List[str]:
         if not valido_tipo:
             errores.append(f"El campo '{nombre}' tiene un tipo incorrecto (esperado {tipo_esperado})")
 
-    # Verificar campos no declarados
-    for nombre_contenido in contenido:
-        if nombre_contenido not in campos_declarados:
-            errores.append(f"El campo '{nombre_contenido}' no está declarado en el tipo de lote")
+    for clave in contenido:
+        if clave not in campos_declarados:
+            errores.append(f"La clave '{clave}' no está en campos")
 
     return errores

@@ -1,13 +1,14 @@
-import psycopg
-from pathlib import Path
+import sqlite3
+import pathlib
 
-def conectar(dsn: str) -> psycopg.Connection:
-    return psycopg.connect(dsn)
+def conectar(ruta=':memory:'):
+    conn = sqlite3.connect(ruta)
+    conn.row_factory = sqlite3.Row
+    conn.execute('PRAGMA foreign_keys = ON')
+    return conn
 
-def crear_esquema(conn: psycopg.Connection) -> None:
-    with conn.cursor() as cur:
-        # Ruta relativa a este archivo: ../sql/schema.sql
-        schema_path = Path(__file__).parent.parent / 'sql' / 'schema.sql'
-        with open(schema_path, 'r', encoding='utf-8') as f:
-            cur.execute(f.read())
-        conn.commit()
+def crear_esquema(conn):
+    schema_path = pathlib.Path(__file__).parent / 'esquema.sql'
+    with open(schema_path, 'r', encoding='utf-8') as f:
+        conn.executescript(f.read())
+    conn.commit()
