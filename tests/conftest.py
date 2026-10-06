@@ -8,7 +8,7 @@ CAMPOS_CLIENTE = [
 
 @pytest.fixture
 def conn():
-    from nodos import db
+    from nodos.nucleo import db
     c = db.conectar(":memory:")
     db.crear_esquema(c)
     yield c

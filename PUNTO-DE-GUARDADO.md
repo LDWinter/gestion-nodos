@@ -17,9 +17,11 @@
   HOJA-DE-RUTA.md, DISENO.md v1, tests de especificación (test_lotes, test_repositorio).
 
 ## Siguiente paso
-- v1 paso A: `nodos/esquema.sql`, `db.py`, `lotes.py` (ia-local programador).
-- v1 paso B: `repositorio.py` hasta pasar tests/test_repositorio.py.
-- v1 paso C: `app.py` + `templates/index.html` (grafo vis-network + panel) + tests API + `semilla.py`.
+- Arquitectura MODULAR (pedido del usuario: poder quitar/agregar sin problemas): nodos/nucleo (db, registro,
+  validacion, eventos, modulos) + nodos/modulos/{tipos,lotes,relaciones,grafo,historial} + config.MODULOS.
+  Hecho y con tests (test_lotes, test_repositorio, test_modulos).
+- EN CURSO: rutas.py de cada módulo (ia-local programador) hasta pasar tests/test_api.py y test_modulos.py.
+- Después: templates/index.html (grafo vis-network + panel), semilla.py, ejecutar prototipo.
 
 ## Pendiente para el usuario
 - Definir la lógica de "dosificar" información por rol, lista final de roles e interfaz final (CLI/API/web).

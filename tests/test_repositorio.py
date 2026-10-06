@@ -1,5 +1,6 @@
 import pytest
-from nodos import db, repositorio as repo
+from nodos import repositorio as repo
+from nodos.nucleo import db
 
 
 def test_esquema_idempotente(conn):

@@ -1,4 +1,4 @@
-from nodos.lotes import validar_contenido
+from nodos.nucleo.validacion import validar_contenido
 
 CAMPOS = [
     {"nombre": "razon_social", "tipo": "texto", "obligatorio": True},
