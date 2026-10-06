@@ -26,3 +26,5 @@
 ## Pendiente para el usuario
 - Definir la lógica de "dosificar" información por rol, lista final de roles e interfaz final (CLI/API/web).
 - Drive: carpeta 'Gestión de Nodos' (id 1XT1T3RxsYgV_XsTuWNnayJuH7E_LR021) con 'Hoja de ruta' (1qKiyoiTcjXNwMQZ4dPGD9-bPVFsO-Y7ie3dgYx7dXVQ) y 'Diseño v1' (1eRUdGnRcMOtyR7IMTorI8IsnSqOD87waSY_HOuNbesY). GitHub privado: LDWinter/gestion-nodos.
+- 2026-10-06: guía para principiantes completa (manual de la web, práctica de módulos, estado). Docs sincronizados
+  a Drive con rclone (`marcamaldita:` + `--drive-root-folder-id 1XT1T3RxsYgV_XsTuWNnayJuH7E_LR021 --drive-import-formats md`).

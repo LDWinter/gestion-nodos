@@ -10,15 +10,16 @@ sepas mucho Python y cómo probarlo. Leela en orden. Si una palabra no se entien
 1. [Qué es este proyecto](#1-qué-es-este-proyecto)
 2. [La idea en un dibujo](#2-la-idea-en-un-dibujo)
 3. [Qué hay en cada carpeta](#3-qué-hay-en-cada-carpeta)
-4. [Cómo instalarlo y usarlo](#4-cómo-instalarlo-y-usarlo)
+4. [Cómo instalarlo y usarlo](#4-cómo-instalarlo-y-usarlo) — incluye el **manual de la página web** (4.4)
 5. [Python mínimo para leer el código](#5-python-mínimo-para-leer-el-código)
 6. [SQL y SQLite mínimo](#6-sql-y-sqlite-mínimo)
 7. [JSON en 1 minuto](#7-json-en-1-minuto)
-8. [Las 4 capas del sistema](#8-las-4-capas-del-sistema)
+8. [Las capas del sistema (y los módulos)](#8-las-capas-del-sistema-y-los-módulos)
 9. [Recorrido completo: qué pasa cuando creás un lote](#9-recorrido-completo-qué-pasa-cuando-creás-un-lote)
 10. [Los tests: qué son y cómo leerlos](#10-los-tests-qué-son-y-cómo-leerlos)
 11. [Cómo leer un error](#11-cómo-leer-un-error)
 12. [Git y GitHub en este proyecto](#12-git-y-github-en-este-proyecto)
+    - [Práctica: quitar y volver a poner un módulo](#12b-práctica-guiada-quitar-y-volver-a-poner-un-módulo)
 13. [Glosario](#13-glosario)
 14. [Preguntas frecuentes](#14-preguntas-frecuentes)
 
@@ -111,7 +112,7 @@ gestion-nodos/
 └── .gitignore              ← lista de archivos que Git debe ignorar
 ```
 
-> Si algún archivo no aparece todavía, mirá `PUNTO-DE-GUARDADO.md` para saber en qué paso estamos.
+> `nodos.db` (la base con los datos) aparece recién cuando corrés `semilla.py` o la aplicación. No se sube a GitHub.
 
 ---
 
@@ -136,14 +137,94 @@ python3 -m venv .venv                 # crea el entorno virtual (una "caja" con 
 ```
 Verde (`PASSED`) = anda. Rojo (`FAILED`/`ERROR`) = algo no cumple lo esperado.
 
-### 4.3 Usar la aplicación (cuando la v1 esté completa)
+### 4.3 Levantar la aplicación
 ```bash
-.venv/bin/python semilla.py        # crea nodos.db con datos de ejemplo
-.venv/bin/python -m nodos.app      # levanta el servidor
+.venv/bin/python semilla.py        # (opcional) borra nodos.db y la vuelve a crear con datos de ejemplo
+.venv/bin/python -m nodos.app      # levanta el servidor web
 ```
 Después abrí **http://127.0.0.1:5000** en el navegador. Para apagar el servidor: `Ctrl + C` en la terminal.
 
----
+> ⚠️ `semilla.py` **borra** los datos que hayas cargado a mano y deja solo los de ejemplo.
+> Si querés conservar tus datos, no la vuelvas a correr (o copiá antes `nodos.db`).
+
+**Datos de ejemplo que carga `semilla.py`:**
+| Tipo | Lotes |
+|---|---|
+| cliente | Acme Corp, Beta SRL |
+| proyecto | Migración ERP, Portal web |
+| factura | Factura A-0001, Factura A-0002 (esta tiene una edición en el historial, para ver el "antes/después") |
+| empleado | Ana López, Luis Pérez |
+| documento | Contrato Acme |
+
+Y 11 relaciones entre ellos: *contrata*, *facturada_a*, *corresponde_a*, *trabaja_en*, *gestiona*, *firmado_por*, *documenta*.
+
+### 4.4 Manual de la página web
+
+La pantalla tiene **3 columnas**:
+
+```
+┌──────────────────┬──────────────────────────────┬──────────────────────┐
+│ FORMULARIOS      │          EL GRAFO            │  PANEL DEL LOTE      │
+│ - Usuario        │                              │  [tipo] [versión]    │
+│ - Nuevo tipo     │     ●──contrata──▶●          │  Título              │
+│ - Nuevo lote     │      ╲                       │ [Detalle][JSON][Hist]│
+│ - Unir lotes     │       ●──trabaja_en──▶●      │  campos, uniones,    │
+│ - Filtrar        │                              │  editar / borrar     │
+└──────────────────┴──────────────────────────────┴──────────────────────┘
+```
+
+**Antes que nada:** escribí tu nombre en **Usuario** (arriba a la izquierda). Es el nombre que queda anotado en el
+registro de cada cosa que hagas. El navegador lo recuerda para la próxima vez.
+
+**Mirar el grafo**
+- Cada **punto** es un lote; el color depende de su tipo. Cada **flecha** es una relación y lleva su nombre.
+- Rueda del mouse = zoom. Arrastrar el fondo = mover. Arrastrar un punto = acomodarlo.
+- **Filtrar por tipo** (abajo a la izquierda) muestra solo los lotes de ese tipo.
+
+**Ver un lote:** hacé clic en un punto. En el panel derecho:
+- **Detalle**: sus campos, fechas de creación y modificación, sus **uniones** (→ sale de este lote, ← llega a
+  este lote; clic en el nombre para saltar a ese lote; "quitar" borra esa unión) y el formulario para editar.
+- **JSON**: los datos crudos tal como los devuelve la API (útil para entender el formato).
+- **Historial**: todo lo que le pasó a ese lote: quién, cuándo y el detalle (antes/después).
+
+**Crear un tipo de lote (un molde)**
+1. En *Nuevo tipo de lote* poné un nombre, ej. `proveedor`.
+2. En *Campos (JSON)* escribí la lista de campos. Ejemplo:
+   ```json
+   [{"nombre":"razon_social","tipo":"texto","obligatorio":true},
+    {"nombre":"rubro","tipo":"texto","obligatorio":false},
+    {"nombre":"alta","tipo":"fecha","obligatorio":true}]
+   ```
+3. *Crear tipo*. Tipos válidos: `texto`, `numero`, `fecha`, `booleano`, `lista`.
+
+**Crear un lote (una ficha)**
+1. En *Nuevo lote* elegí el tipo: aparecen solos los campos de ese molde.
+2. Completá el título y los campos:
+   - número: `120` · fecha: `2026-10-06` · booleano: `si` / `no` · lista: `a, b, c` (separado por comas).
+   - Los campos vacíos no se envían (si eran obligatorios, aparece un error).
+3. *Crear lote*. Aparece en el grafo y se abre en el panel.
+
+**Unir dos lotes:** en *Unir lotes* elegí origen, escribí el tipo de relación (ej. `paga`) y el destino → *Unir*.
+No se puede unir un lote consigo mismo ni repetir la misma unión.
+
+**Editar un lote:** en el panel, pestaña *Detalle*, cambiá el título o el contenido JSON → *Guardar cambios*.
+La versión sube en 1 y el historial guarda el antes y el después.
+
+**Borrar un lote:** *Borrar lote* (pide confirmación). Desaparece del grafo junto con sus uniones, pero **no se
+pierde**: queda en la base marcado como borrado y su historial sigue guardado.
+
+**Errores:** si algo no es válido, aparece un aviso rojo abajo con el motivo
+(ej. *"falta el campo obligatorio cuit"*).
+
+### 4.5 Usar la API sin la página (opcional)
+La página es solo una "cara" de la API: cualquier programa puede usarla. Con `curl` en la terminal:
+```bash
+curl http://127.0.0.1:5000/api/grafo                    # ver todos los nodos y flechas
+curl http://127.0.0.1:5000/api/lotes/1                  # ver el lote 1
+curl -X POST http://127.0.0.1:5000/api/lotes \
+     -H "Content-Type: application/json" -H "X-Usuario: ana" \
+     -d '{"tipo_id": 4, "titulo": "Juan", "contenido": {"nombre": "Juan", "area": "RRHH"}}'
+```
 
 ## 5. Python mínimo para leer el código
 
@@ -286,7 +367,7 @@ Tipos de campo permitidos: `texto`, `numero`, `fecha` (formato `AAAA-MM-DD`), `b
 
 ---
 
-## 8. Las 4 capas del sistema
+## 8. Las capas del sistema (y los módulos)
 
 Cada capa tiene **una sola responsabilidad** y solo habla con la de abajo. Analogía: un restaurante.
 
@@ -527,6 +608,26 @@ Metodología: cada versión (v1, v2…) se trabaja en su **rama** y se marca con
 
 ---
 
+## 12b. Práctica guiada: quitar y volver a poner un módulo
+
+Sirve para comprobar con tus propios ojos que el sistema es modular.
+
+1. Apagá el servidor (`Ctrl + C`).
+2. Abrí `nodos/config.py` y sacá `"historial"` de la lista:
+   ```python
+   MODULOS = ["tipos", "lotes", "relaciones", "grafo"]
+   ```
+3. Levantá de nuevo: `.venv/bin/python -m nodos.app`. Abrí un lote: la pestaña *Historial* dice
+   *"Sin historial (módulo inactivo)"* y `http://127.0.0.1:5000/api/historial` responde 404.
+   El registro **se sigue guardando** (es del núcleo); solo se apagó la consulta.
+4. Probá sacar `"relaciones"` y dejar `"grafo"`: al arrancar aparece
+   `RuntimeError: el módulo 'grafo' necesita 'relaciones' activo...`. Así el sistema te avisa qué falta.
+5. Volvé a dejar la lista como estaba y reiniciá.
+
+Para ver lo mismo con tests: `tests/test_modulos.py` (por ejemplo `test_app_sin_modulo_historial`).
+
+---
+
 ## 13. Glosario
 
 | Término | Explicación simple |
@@ -611,3 +712,20 @@ Python no las obliga; son documentación.
 
 **¿Dónde está la documentación en Drive?**
 `FACULTAD / tercer semestre / METODOLOGIA Y TESTING / Gestión de Nodos`.
+
+---
+
+## 15. Estado del proyecto y dónde está cada cosa
+
+| Qué | Dónde |
+|---|---|
+| Código e historial | GitHub privado `LDWinter/gestion-nodos` |
+| Plan por versiones | `HOJA-DE-RUTA.md` (y en Drive) |
+| Diseño técnico | `DISENO.md` (y en Drive) |
+| Esta guía | `docs/GUIA-PRINCIPIANTES.md` (y en Drive) |
+| Avance día a día | `PUNTO-DE-GUARDADO.md` |
+| Ideas para más adelante (PostgreSQL, diseño completo, referencia NodoERP) | carpeta `futuro/` |
+| Documentos en Drive | FACULTAD / tercer semestre / METODOLOGIA Y TESTING / Gestión de Nodos |
+
+**Versión actual:** v1, el modelo básico y funcional, con 33 tests automáticos en verde. Lo próximo es la v2
+(usuarios y roles), según la hoja de ruta.
