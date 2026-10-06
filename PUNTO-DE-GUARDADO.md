@@ -28,3 +28,6 @@
 - Drive: carpeta 'Gestión de Nodos' (id 1XT1T3RxsYgV_XsTuWNnayJuH7E_LR021) con 'Hoja de ruta' (1qKiyoiTcjXNwMQZ4dPGD9-bPVFsO-Y7ie3dgYx7dXVQ) y 'Diseño v1' (1eRUdGnRcMOtyR7IMTorI8IsnSqOD87waSY_HOuNbesY). GitHub privado: LDWinter/gestion-nodos.
 - 2026-10-06: guía para principiantes completa (manual de la web, práctica de módulos, estado). Docs sincronizados
   a Drive con rclone (`marcamaldita:` + `--drive-root-folder-id 1XT1T3RxsYgV_XsTuWNnayJuH7E_LR021 --drive-import-formats md`).
+- 2026-10-06: CAMBIO DE ENFOQUE (pedido del usuario): la carpeta de Drive "Gestión de Nodos" se movió a la RAÍZ del Drive.
+  Este proyecto queda como SOLUCIÓN DE REFERENCIA. El usuario aprende a hacer la BD desde cero en ~/Proyectos/bd-desde-cero
+  (PLAN.md; Drive: METODOLOGIA Y TESTING/Base de datos desde cero, id 1UOvqMpUjifbOxgqPm_IbEcJN6Puh83NY).
