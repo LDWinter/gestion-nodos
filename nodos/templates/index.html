@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestión de Nodos</title>
+<!-- vis-network: la librería que dibuja el grafo (la misma que usa NodoERP) -->
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+  :root { --fondo:#0f172a; --panel:#1e293b; --borde:#334155; --texto:#e2e8f0; --suave:#94a3b8; --acento:#38bdf8; --error:#f87171; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, sans-serif; background:var(--fondo); color:var(--texto); display:grid;
+         grid-template-columns: 280px 1fr 380px; height:100vh; }
+  aside, section { overflow:auto; padding:14px; }
+  aside { background:var(--panel); border-right:1px solid var(--borde); }
+  #panel { background:var(--panel); border-left:1px solid var(--borde); }
+  h1 { font-size:18px; margin:0 0 4px; } h2 { font-size:14px; margin:18px 0 6px; color:var(--acento); }
+  label { display:block; font-size:12px; color:var(--suave); margin-top:6px; }
+  input, select, textarea, button { width:100%; padding:6px; margin-top:2px; border-radius:6px; border:1px solid var(--borde);
+         background:var(--fondo); color:var(--texto); font:inherit; font-size:13px; }
+  textarea { min-height:70px; font-family: monospace; }
+  button { background:var(--acento); color:#0f172a; border:none; font-weight:600; cursor:pointer; margin-top:8px; }
+  button.peligro { background:var(--error); }
+  #red { height:100vh; padding:0; }
+  .tabs { display:flex; gap:4px; margin:10px 0; } .tabs button { margin:0; background:var(--fondo); color:var(--texto); }
+  .tabs button.activa { background:var(--acento); color:#0f172a; }
+  table { width:100%; border-collapse:collapse; font-size:13px; } td { border-bottom:1px solid var(--borde); padding:4px; vertical-align:top; }
+  td:first-child { color:var(--suave); width:40%; }
+  pre { background:var(--fondo); padding:8px; border-radius:6px; font-size:12px; overflow:auto; white-space:pre-wrap; }
+  .evento { border-left:3px solid var(--acento); padding:4px 8px; margin:6px 0; font-size:12px; }
+  .chip { display:inline-block; background:var(--fondo); border:1px solid var(--borde); border-radius:10px; padding:1px 8px; font-size:11px; }
+  #aviso { position:fixed; bottom:12px; left:50%; transform:translateX(-50%); padding:8px 14px; border-radius:6px; display:none; }
+  .oculto { display:none; }
+</style>
+</head>
+<body>
+<!-- ===================== COLUMNA IZQUIERDA: formularios ===================== -->
+<aside>
+  <h1>Gestión de Nodos</h1>
+  <div class="chip" id="modulos"></div>
+  <label>Usuario (queda en el registro)</label>
+  <input id="usuario" value="anonimo">
+
+  <div data-modulo="tipos">
+    <h2>Nuevo tipo de lote</h2>
+    <label>Nombre</label><input id="tipo-nombre" placeholder="cliente">
+    <label>Campos (JSON)</label>
+    <textarea id="tipo-campos">[{"nombre":"razon_social","tipo":"texto","obligatorio":true}]</textarea>
+    <button onclick="crearTipo()">Crear tipo</button>
+  </div>
+
+  <div data-modulo="lotes">
+    <h2>Nuevo lote</h2>
+    <label>Tipo</label><select id="lote-tipo" onchange="dibujarCamposLote()"></select>
+    <label>Título</label><input id="lote-titulo">
+    <div id="lote-campos"></div>
+    <button onclick="crearLote()">Crear lote</button>
+  </div>
+
+  <div data-modulo="relaciones">
+    <h2>Unir lotes</h2>
+    <label>Origen</label><select id="rel-origen"></select>
+    <label>Tipo de relación</label><input id="rel-tipo" value="referencia">
+    <label>Destino</label><select id="rel-destino"></select>
+    <button onclick="crearRelacion()">Unir</button>
+  </div>
+
+  <h2>Filtrar por tipo</h2>
+  <select id="filtro" onchange="cargarGrafo()"><option value="">Todos</option></select>
+</aside>
+
+<!-- ===================== CENTRO: el grafo ===================== -->
+<section id="red"></section>
+
+<!-- ===================== COLUMNA DERECHA: panel del lote seleccionado ===================== -->
+<section id="panel">
+  <p id="panel-vacio" style="color:var(--suave)">Hacé clic en un nodo del grafo para ver su información.</p>
+  <div id="panel-lote" class="oculto">
+    <span class="chip" id="p-tipo"></span> <span class="chip" id="p-version"></span>
+    <h1 id="p-titulo" style="margin-top:8px"></h1>
+    <div class="tabs">
+      <button data-tab="detalle" class="activa" onclick="pestana('detalle')">Detalle</button>
+      <button data-tab="json" onclick="pestana('json')">JSON</button>
+      <button data-tab="historial" onclick="pestana('historial')">Historial</button>
+    </div>
+    <div id="tab-detalle">
+      <table id="p-campos"></table>
+      <h2>Uniones</h2><div id="p-vecinos"></div>
+      <h2>Editar</h2>
+      <label>Título</label><input id="e-titulo">
+      <label>Contenido (JSON)</label><textarea id="e-contenido"></textarea>
+      <button onclick="editarLote()">Guardar cambios</button>
+      <button class="peligro" onclick="borrarLote()">Borrar lote</button>
+    </div>
+    <div id="tab-json" class="oculto"><pre id="p-json"></pre></div>
+    <div id="tab-historial" class="oculto"><div id="p-historial"></div></div>
+  </div>
+</section>
+<div id="aviso"></div>
+
+<script>
+// Módulos activos (los manda el servidor). Si un módulo no está, se oculta su parte de la página.
+const MODULOS = {{ modulos|tojson }};
+document.getElementById("modulos").textContent = "módulos: " + MODULOS.join(", ");
+document.querySelectorAll("[data-modulo]").forEach(el => {
+  if (!MODULOS.includes(el.dataset.modulo)) el.classList.add("oculto");
+});
+
+let tipos = [], loteActual = null, red = null;
+const COLORES = ["#38bdf8", "#a78bfa", "#34d399", "#fbbf24", "#f472b6", "#fb923c", "#60a5fa", "#4ade80"];
+const colorDe = nombre => COLORES[Math.abs([...nombre].reduce((a, c) => a + c.charCodeAt(0), 0)) % COLORES.length];
+
+// ---------- ayudantes ----------
+const $ = id => document.getElementById(id);
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// Usuario recordado en el navegador (solo comodidad; si falla, no pasa nada)
+try { $("usuario").value = localStorage.getItem("usuario") || "anonimo"; } catch (e) {}
+$("usuario").onchange = () => { try { localStorage.setItem("usuario", $("usuario").value); } catch (e) {} };
+
+function avisar(texto, error = false) {
+  const a = $("aviso");
+  a.textContent = texto; a.style.display = "block";
+  a.style.background = error ? "var(--error)" : "var(--acento)"; a.style.color = "#0f172a";
+  setTimeout(() => a.style.display = "none", 3000);
+}
+
+// Llama a la API del servidor. Muestra el error si la respuesta no es OK.
+async function api(metodo, ruta, cuerpo) {
+  const r = await fetch("/api" + ruta, {
+    method: metodo,
+    headers: { "Content-Type": "application/json", "X-Usuario": $("usuario").value || "anonimo" },
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+  });
+  const datos = await r.json().catch(() => ({}));
+  if (!r.ok) { avisar(datos.error || "Error " + r.status, true); throw new Error(datos.error); }
+  return datos;
+}
+
+// ---------- tipos ----------
+async function cargarTipos() {
+  if (!MODULOS.includes("tipos")) return;
+  tipos = await api("GET", "/tipos");
+  const opciones = tipos.map(t => `<option value="${t.id}">${esc(t.nombre)}</option>`).join("");
+  $("lote-tipo").innerHTML = opciones;
+  $("filtro").innerHTML = '<option value="">Todos</option>' + tipos.map(t => `<option>${esc(t.nombre)}</option>`).join("");
+  dibujarCamposLote();
+}
+
+async function crearTipo() {
+  let campos;
+  try { campos = JSON.parse($("tipo-campos").value); } catch (e) { return avisar("Los campos no son JSON válido", true); }
+  await api("POST", "/tipos", { nombre: $("tipo-nombre").value, campos });
+  avisar("Tipo creado"); cargarTipos();
+}
+
+// Arma un input por cada campo del tipo elegido
+function dibujarCamposLote() {
+  const tipo = tipos.find(t => t.id == $("lote-tipo").value);
+  $("lote-campos").innerHTML = !tipo ? "" : tipo.campos.map(c =>
+    `<label>${esc(c.nombre)} <small>(${c.tipo}${c.obligatorio ? ", obligatorio" : ""})</small></label>
+     <input data-campo="${esc(c.nombre)}" data-tipo="${c.tipo}"
+            placeholder="${c.tipo === "fecha" ? "AAAA-MM-DD" : c.tipo === "lista" ? "a, b, c" : c.tipo === "booleano" ? "si / no" : ""}">`
+  ).join("");
+}
+
+// Convierte lo escrito en cada input al tipo correcto (número, booleano, lista...)
+function leerCampos() {
+  const contenido = {};
+  document.querySelectorAll("#lote-campos input").forEach(i => {
+    const v = i.value.trim();
+    if (v === "") return;                       // vacío = no se envía
+    if (i.dataset.tipo === "numero") contenido[i.dataset.campo] = Number(v);
+    else if (i.dataset.tipo === "booleano") contenido[i.dataset.campo] = ["si", "sí", "true", "1"].includes(v.toLowerCase());
+    else if (i.dataset.tipo === "lista") contenido[i.dataset.campo] = v.split(",").map(x => x.trim()).filter(Boolean);
+    else contenido[i.dataset.campo] = v;
+  });
+  return contenido;
+}
+
+// ---------- lotes ----------
+async function crearLote() {
+  const r = await api("POST", "/lotes", { tipo_id: Number($("lote-tipo").value), titulo: $("lote-titulo").value, contenido: leerCampos() });
+  avisar("Lote creado"); $("lote-titulo").value = ""; await cargarGrafo(); abrirLote(r.id);
+}
+
+async function abrirLote(id) {
+  const d = await api("GET", "/lotes/" + id);
+  loteActual = d.lote;
+  $("panel-vacio").classList.add("oculto"); $("panel-lote").classList.remove("oculto");
+  $("p-tipo").textContent = d.lote.tipo; $("p-version").textContent = "versión " + d.lote.version;
+  $("p-titulo").textContent = d.lote.titulo;
+  $("p-campos").innerHTML = Object.entries(d.lote.contenido)
+    .map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(Array.isArray(v) ? v.join(", ") : v)}</td></tr>`).join("")
+    + `<tr><td>creado</td><td>${d.lote.creado_en}</td></tr><tr><td>actualizado</td><td>${d.lote.actualizado_en}</td></tr>`;
+  $("p-vecinos").innerHTML = d.vecinos.length ? d.vecinos.map(v =>
+    `<div class="evento">${v.direccion === "sale" ? "→" : "←"} <b>${esc(v.tipo)}</b>
+       <a href="#" onclick="abrirLote(${v.lote.id});return false" style="color:var(--acento)">${esc(v.lote.titulo)}</a>
+       ${MODULOS.includes("relaciones") ? `<a href="#" onclick="quitarRelacion(${v.relacion_id});return false" style="color:var(--error);float:right">quitar</a>` : ""}
+     </div>`).join("") : '<small style="color:var(--suave)">Sin uniones</small>';
+  $("e-titulo").value = d.lote.titulo;
+  $("e-contenido").value = JSON.stringify(d.lote.contenido, null, 2);
+  $("p-json").textContent = JSON.stringify(d, null, 2);
+  $("p-historial").innerHTML = d.historial.map(h =>
+    `<div class="evento"><b>${esc(h.accion)}</b> · ${esc(h.usuario)}<br><small>${h.fecha}</small>
+       <pre>${esc(JSON.stringify(h.detalle, null, 2))}</pre></div>`).join("") || "<small>Sin historial (módulo inactivo)</small>";
+  if (red) red.selectNodes([id]);
+}
+
+async function editarLote() {
+  let contenido;
+  try { contenido = JSON.parse($("e-contenido").value); } catch (e) { return avisar("El contenido no es JSON válido", true); }
+  await api("PUT", "/lotes/" + loteActual.id, { titulo: $("e-titulo").value, contenido });
+  avisar("Guardado"); await cargarGrafo(); abrirLote(loteActual.id);
+}
+
+async function borrarLote() {
+  if (!confirm(`¿Borrar el lote "${loteActual.titulo}"?`)) return;
+  await api("DELETE", "/lotes/" + loteActual.id);
+  avisar("Lote borrado"); loteActual = null;
+  $("panel-lote").classList.add("oculto"); $("panel-vacio").classList.remove("oculto");
+  cargarGrafo();
+}
+
+// ---------- relaciones ----------
+async function crearRelacion() {
+  await api("POST", "/relaciones", { origen_id: Number($("rel-origen").value), destino_id: Number($("rel-destino").value), tipo: $("rel-tipo").value });
+  avisar("Lotes unidos"); await cargarGrafo(); if (loteActual) abrirLote(loteActual.id);
+}
+
+async function quitarRelacion(id) {
+  await api("DELETE", "/relaciones/" + id);
+  avisar("Unión quitada"); await cargarGrafo(); if (loteActual) abrirLote(loteActual.id);
+}
+
+// ---------- grafo ----------
+async function cargarGrafo() {
+  if (!MODULOS.includes("grafo")) return;
+  const g = await api("GET", "/grafo");
+  const filtro = $("filtro").value;
+  const nodos = g.nodos.filter(n => !filtro || n.tipo === filtro);
+  const visibles = new Set(nodos.map(n => n.id));
+  const opciones = g.nodos.map(n => `<option value="${n.id}">${esc(n.titulo)} (${esc(n.tipo)})</option>`).join("");
+  $("rel-origen").innerHTML = opciones; $("rel-destino").innerHTML = opciones;
+
+  const datos = {
+    nodes: new vis.DataSet(nodos.map(n => ({ id: n.id, label: n.titulo, title: n.tipo, color: colorDe(n.tipo), shape: "dot", size: 16 }))),
+    edges: new vis.DataSet(g.aristas.filter(a => visibles.has(a.origen) && visibles.has(a.destino))
+      .map(a => ({ id: a.id, from: a.origen, to: a.destino, label: a.tipo, arrows: "to" }))),
+  };
+  const opcionesRed = {
+    nodes: { font: { color: "#e2e8f0" }, borderWidth: 2 },
+    edges: { color: "#64748b", font: { color: "#94a3b8", strokeWidth: 0, size: 11 }, smooth: { type: "continuous" } },
+    physics: { solver: "forceAtlas2Based" },
+    interaction: { hover: true },
+  };
+  if (red) red.setData(datos);
+  else {
+    red = new vis.Network($("red"), datos, opcionesRed);
+    red.on("selectNode", e => abrirLote(e.nodes[0]));
+  }
+}
+
+function pestana(nombre) {
+  ["detalle", "json", "historial"].forEach(t => $("tab-" + t).classList.toggle("oculto", t !== nombre));
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("activa", b.dataset.tab === nombre));
+}
+
+cargarTipos().then(cargarGrafo);
+</script>
+</body>
+</html>

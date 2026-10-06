@@ -8,14 +8,14 @@ vista, el JSON y los datos del nodo seleccionado. Hay un análisis en `futuro/re
 
 ## v1 — Modelo básico y funcional (ahora)
 Objetivo: algo simple, que ande y que se pueda probar.
-- [ ] Base **SQLite** (un archivo, sin instalar nada) con 4 tablas: `tipos_lote`, `lotes`, `relaciones`, `registro`.
-- [ ] Tipos de lote con campos definidos y validación del contenido (campos obligatorios, sin campos de más, tipos correctos).
-- [ ] Altas, ediciones y bajas lógicas de lotes. Crear y quitar relaciones entre lotes.
-- [ ] **Registro** automático de cada acción: quién, cuándo, qué, y el antes y el después.
-- [ ] Web con **Flask**: un grafo con vis-network y un panel lateral con las pestañas Detalle, JSON e Historial,
+- [x] Base **SQLite** (un archivo, sin instalar nada) con 4 tablas: `tipos_lote`, `lotes`, `relaciones`, `registro`.
+- [x] Tipos de lote con campos definidos y validación del contenido (campos obligatorios, sin campos de más, tipos correctos).
+- [x] Altas, ediciones y bajas lógicas de lotes. Crear y quitar relaciones entre lotes.
+- [x] **Registro** automático de cada acción: quién, cuándo, qué, y el antes y el después.
+- [x] Web con **Flask**: un grafo con vis-network y un panel lateral con las pestañas Detalle, JSON e Historial,
       más formularios para crear lotes y relaciones.
-- [ ] Datos de ejemplo (`semilla.py`).
-- [ ] Tests con **pytest**: unitarios del validador, de integración del repositorio y de la API.
+- [x] Datos de ejemplo (`semilla.py`).
+- [x] Tests con **pytest**: unitarios del validador, de integración del repositorio y de la API.
 
 ## v2 — Usuarios y roles
 - Inicio de sesión simple y roles: lector, editor y admin.

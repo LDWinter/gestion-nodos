@@ -80,18 +80,30 @@ gestion-nodos/
 ├── docs/
 │   └── GUIA-PRINCIPIANTES.md  ← esta guía
 ├── nodos/                  ← EL CÓDIGO del sistema (un "paquete" de Python)
-│   ├── __init__.py         ← archivo vacío; le dice a Python "esta carpeta es un paquete"
-│   ├── esquema.sql         ← definición de las tablas de la base de datos
-│   ├── db.py               ← abre la base de datos y crea las tablas
-│   ├── lotes.py            ← valida que un lote tenga los campos correctos
-│   ├── repositorio.py      ← las acciones: crear, editar, borrar, unir, consultar
-│   ├── app.py              ← el servidor web (Flask) y su API
-│   └── templates/index.html ← la página que dibuja el grafo
+│   ├── config.py           ← ★ LISTA DE MÓDULOS ACTIVOS (acá se quitan o agregan)
+│   ├── app.py              ← el servidor web: carga las rutas de cada módulo activo
+│   ├── web.py              ← ayudantes para las rutas (conexión, usuario, datos del pedido)
+│   ├── repositorio.py      ← "fachada": junta las funciones de todos los módulos en un solo lugar
+│   ├── templates/index.html ← la página que dibuja el grafo
+│   ├── nucleo/             ← lo que el sistema necesita SIEMPRE
+│   │   ├── db.py           ← abre la base y crea las tablas
+│   │   ├── esquema.sql     ← tabla `registro` (la bitácora)
+│   │   ├── registro.py     ← anotar acciones en la bitácora
+│   │   ├── validacion.py   ← valida que un lote tenga los campos correctos
+│   │   ├── eventos.py      ← avisos entre módulos
+│   │   └── modulos.py      ← carga los módulos y revisa dependencias
+│   └── modulos/            ← piezas intercambiables, una carpeta por módulo
+│       ├── tipos/          ← moldes de lote
+│       ├── lotes/          ← las fichas
+│       ├── relaciones/     ← las flechas
+│       ├── grafo/          ← arma la red para dibujarla
+│       └── historial/      ← consulta la bitácora
 ├── tests/                  ← LAS PRUEBAS automáticas
 │   ├── conftest.py         ← preparación común a todos los tests
 │   ├── test_lotes.py       ← prueba el validador
 │   ├── test_repositorio.py ← prueba las acciones sobre la base
-│   └── test_api.py         ← prueba el servidor web
+│   ├── test_api.py         ← prueba el servidor web
+│   └── test_modulos.py     ← prueba que se puedan quitar módulos
 ├── futuro/                 ← material guardado para versiones futuras (PostgreSQL, diseño completo)
 ├── semilla.py              ← carga datos de ejemplo
 ├── pyproject.toml          ← configuración de pytest
@@ -99,8 +111,7 @@ gestion-nodos/
 └── .gitignore              ← lista de archivos que Git debe ignorar
 ```
 
-> Algunos archivos (`repositorio.py`, `app.py`, `index.html`, `semilla.py`) se van creando a medida que avanza
-> la v1. Si no los ves todavía, es normal: mirá `PUNTO-DE-GUARDADO.md` para saber en qué paso estamos.
+> Si algún archivo no aparece todavía, mirá `PUNTO-DE-GUARDADO.md` para saber en qué paso estamos.
 
 ---
 
@@ -298,17 +309,57 @@ Cada capa tiene **una sola responsabilidad** y solo habla con la de abajo. Analo
      nodos.db  (tablas de esquema.sql)                   ◀── la DESPENSA
 ```
 
-### 8.1 `esquema.sql` — la despensa
-Solo SQL. Define las 4 tablas con sus reglas. No tiene lógica.
 
-### 8.2 `db.py` — la llave
+### 8.0 Arquitectura modular: piezas que se ponen y se sacan
+
+El sistema está dividido en un **núcleo** (lo imprescindible) y **módulos** (piezas intercambiables).
+Cada módulo es una carpeta en `nodos/modulos/` con siempre la misma forma:
+
+```
+nodos/modulos/relaciones/
+├── __init__.py    ← dice de qué otros módulos depende (DEPENDE_DE) y qué funciones ofrece
+├── servicio.py    ← la lógica: funciones que trabajan con la base de datos
+├── rutas.py       ← las direcciones web del módulo (opcional)
+└── esquema.sql    ← las tablas que el módulo necesita (opcional)
+```
+
+**Los módulos activos se eligen en `nodos/config.py`:**
+```python
+MODULOS = ["tipos", "lotes", "relaciones", "grafo", "historial"]
+```
+- **Quitar un módulo:** borrarlo de esa lista. Sus tablas no se crean, sus rutas web desaparecen y la página
+  oculta sus formularios. Si otro módulo lo necesita, el sistema avisa con un error claro
+  (ej.: *"el módulo 'grafo' necesita 'relaciones'"*).
+- **Agregar un módulo:** copiar la estructura de una carpeta existente, escribir su lógica y sumarlo a la lista.
+
+| Módulo | Depende de | Tabla | Para qué |
+|---|---|---|---|
+| `tipos` | — | `tipos_lote` | moldes de lote |
+| `lotes` | tipos | `lotes` | las fichas |
+| `relaciones` | lotes | `relaciones` | las flechas |
+| `grafo` | lotes, relaciones | — | arma la red para dibujar |
+| `historial` | — | (usa `registro` del núcleo) | consultar la bitácora |
+
+**Eventos (cómo se avisan los módulos sin depender entre sí):** cuando se borra un lote, el módulo `lotes`
+*emite* el evento `"lote_borrado"`. El módulo `relaciones` está *suscripto* a ese evento y quita las flechas del
+lote. Así `lotes` no necesita saber que `relaciones` existe: si quitás `relaciones`, `lotes` sigue andando.
+
+**La fachada `repositorio.py`:** junta las funciones de todos los módulos activos para poder usar
+`repo.crear_lote(...)` sin saber en qué carpeta está cada cosa. Es lo que usan los tests y `semilla.py`.
+
+> En las secciones siguientes, "el repositorio" significa el conjunto de los `servicio.py` de los módulos.
+
+### 8.1 `esquema.sql` — la despensa
+Solo SQL. Cada módulo trae el `esquema.sql` de su tabla y el núcleo trae el de `registro`. No tienen lógica.
+
+### 8.2 `nucleo/db.py` — la llave
 Dos funciones:
 - `conectar(ruta)`: abre la base. Con `":memory:"` crea una base **temporal en memoria** (se usa en los tests:
   cada test arranca con una base limpia y nada queda guardado). Activa las claves foráneas
   (`PRAGMA foreign_keys = ON`, que SQLite trae apagadas) y hace que cada fila se pueda leer por nombre de columna.
-- `crear_esquema(conn)`: lee `esquema.sql` y lo ejecuta.
+- `crear_esquema(conn, modulos)`: ejecuta el `esquema.sql` del núcleo y el de cada módulo activo.
 
-### 8.3 `lotes.py` — control de calidad
+### 8.3 `nucleo/validacion.py` — control de calidad
 Una sola función: `validar_contenido(campos, contenido)`. Recibe el molde y la ficha y devuelve una
 **lista de errores**. Lista vacía = todo bien.
 
@@ -322,8 +373,8 @@ Una sola función: `validar_contenido(campos, contenido)`. Recibe el molde y la 
 > Detalle curioso: en Python `True` cuenta como número (vale 1). Por eso el validador revisa aparte que un campo
 > `numero` **no** sea booleano. Hay un test justo para eso (`test_booleano_no_es_numero`).
 
-### 8.4 `repositorio.py` — el cocinero
-Acá están **todas las acciones**. Todas reciben `conn` (la conexión a la base) como primer dato.
+### 8.4 Los `servicio.py` de cada módulo — el cocinero
+Acá están **todas las acciones**, repartidas por módulo. Todas reciben `conn` (la conexión a la base) como primer dato.
 Regla de oro: **cada acción que modifica algo también escribe una fila en `registro`**.
 
 | Acción | Qué hace |
@@ -340,9 +391,9 @@ Regla de oro: **cada acción que modifica algo también escribe una fila en `reg
 
 La tabla completa con lo que devuelve cada una está en [DISENO.md](../DISENO.md).
 
-### 8.5 `app.py` + `templates/index.html` — el mozo y el salón
+### 8.5 `app.py`, los `rutas.py` y `templates/index.html` — el mozo y el salón
 - **Flask** es una librería para hacer servidores web en Python.
-- `app.py` define **rutas**: una dirección + un método, que ejecutan una función del repositorio.
+- Cada módulo define sus **rutas** en su `rutas.py` (un *Blueprint* de Flask): una dirección + un método, que ejecutan una función de su `servicio.py`. `app.py` registra las rutas de los módulos activos.
 - Los **métodos HTTP** dicen qué querés hacer: `GET` = leer, `POST` = crear, `PUT` = modificar, `DELETE` = borrar.
 - Las respuestas llevan un **código de estado**: `200` OK, `201` creado, `400` pedido inválido, `404` no existe.
 
@@ -370,17 +421,17 @@ Supongamos que desde la web creás el lote "Acme" de tipo cliente:
 
 1. **Navegador** → envía `POST /api/lotes` con `{"tipo_id": 1, "titulo": "Acme", "contenido": {"razon_social": "Acme"}}`
    y el encabezado `X-Usuario: ana`.
-2. **`app.py`** → la ruta lee ese JSON y el usuario, y llama a
-   `repositorio.crear_lote(conn, 1, "Acme", {"razon_social": "Acme"}, "ana")`.
-3. **`repositorio.py`**:
-   1. Busca el tipo 1 en `tipos_lote`. Si no existe → `ValueError`.
-   2. Llama a `lotes.validar_contenido(campos_del_tipo, contenido)`. Si hay errores → `ValueError` con esos errores.
+2. **`modulos/lotes/rutas.py`** → la ruta lee ese JSON y el usuario, y llama a
+   `servicio.crear_lote(conn, 1, "Acme", {"razon_social": "Acme"}, "ana")`.
+3. **`modulos/lotes/servicio.py`**:
+   1. Le pide al módulo `tipos` los campos del tipo 1. Si no existe → `ValueError`.
+   2. Llama a `nucleo/validacion.validar_contenido(campos_del_tipo, contenido)`. Si hay errores → `ValueError` con esos errores.
    3. `INSERT INTO lotes ...` guardando el contenido como texto JSON.
    4. `INSERT INTO registro ...` con `accion = "crear_lote"`, `usuario = "ana"` y `detalle = {"despues": {...}}`.
    5. `conn.commit()` → confirma y guarda los cambios en el archivo.
    6. Devuelve el `id` del lote nuevo.
-4. **`app.py`** → responde `201` con `{"id": 7}`.
-   Si hubo `ValueError`, responde `400` con `{"error": "..."}`.
+4. **La ruta** → responde `201` con `{"id": 7}`.
+   Si hubo `ValueError`, `app.py` lo atrapa y responde `400` con `{"error": "..."}`.
 5. **Navegador** → vuelve a pedir `/api/grafo` y dibuja el nodo nuevo.
 
 ---
@@ -514,7 +565,12 @@ Metodología: cada versión (v1, v2…) se trabaja en su **rama** y se marca con
 | **Commit (Git)** | una foto del código en un momento |
 | **Commit (base de datos)** | confirmar los cambios para que queden guardados |
 | **Repositorio (Git)** | la carpeta del proyecto con todo su historial |
-| **`repositorio.py`** | ojo, otra cosa: el módulo con las acciones sobre la base (patrón "Repository") |
+| **`repositorio.py`** | ojo, otra cosa: la fachada que junta las acciones de todos los módulos |
+| **Módulo (del sistema)** | carpeta de `nodos/modulos/` que se activa o desactiva en `config.py` |
+| **Núcleo** | la parte imprescindible (`nodos/nucleo/`) |
+| **Evento** | aviso que un módulo emite y otros escuchan, para no depender entre sí |
+| **Blueprint** | grupo de rutas web de Flask; cada módulo tiene el suyo |
+| **Fachada** | un archivo que reúne funciones de varios lugares en uno solo |
 
 ---
 
@@ -527,6 +583,13 @@ contempla pasar a PostgreSQL en la v4 (borrador en `futuro/`).
 **¿Por qué el contenido de los lotes se guarda como JSON y no en columnas?**
 Porque cada tipo de lote tiene campos distintos. Con JSON una sola tabla `lotes` sirve para todos los
 tipos, y el orden lo garantiza el validador (`lotes.py`), que exige exactamente los campos del molde.
+
+**¿Cómo agrego un módulo nuevo, por ejemplo "adjuntos"?**
+1. Copiá la carpeta `nodos/modulos/historial/` como `nodos/modulos/adjuntos/`.
+2. En `__init__.py` poné de qué depende (`DEPENDE_DE = ["lotes"]`) y qué funciones exporta.
+3. Escribí sus tablas en `esquema.sql`, su lógica en `servicio.py` y sus direcciones web en `rutas.py`.
+4. Sumalo a `MODULOS` en `nodos/config.py` (después de los módulos que necesita).
+5. Escribí sus tests en `tests/test_adjuntos.py`.
 
 **¿Por qué los tests usan `":memory:"`?**
 Para que cada test tenga una base nueva y vacía, sea rápido y no ensucie el archivo `nodos.db` real.

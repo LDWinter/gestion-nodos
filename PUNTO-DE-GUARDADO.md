@@ -17,11 +17,11 @@
   HOJA-DE-RUTA.md, DISENO.md v1, tests de especificación (test_lotes, test_repositorio).
 
 ## Siguiente paso
-- Arquitectura MODULAR (pedido del usuario: poder quitar/agregar sin problemas): nodos/nucleo (db, registro,
-  validacion, eventos, modulos) + nodos/modulos/{tipos,lotes,relaciones,grafo,historial} + config.MODULOS.
-  Hecho y con tests (test_lotes, test_repositorio, test_modulos).
-- EN CURSO: rutas.py de cada módulo (ia-local programador) hasta pasar tests/test_api.py y test_modulos.py.
-- Después: templates/index.html (grafo vis-network + panel), semilla.py, ejecutar prototipo.
+- v1 FUNCIONANDO (2026-10-06): módulos núcleo + tipos/lotes/relaciones/grafo/historial, rutas (ia-local),
+  página con grafo vis-network, semilla.py. 33 tests en verde. Prototipo: `.venv/bin/python semilla.py` +
+  `.venv/bin/python -m nodos.app` → http://127.0.0.1:5000
+- Falta para cerrar v1: que el usuario pruebe la web y dé su opinión; tag v1.0; reporte de pruebas para la materia.
+- Luego v2 (usuarios y roles) según HOJA-DE-RUTA.md.
 
 ## Pendiente para el usuario
 - Definir la lógica de "dosificar" información por rol, lista final de roles e interfaz final (CLI/API/web).

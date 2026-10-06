@@ -22,13 +22,26 @@ registro(id INTEGER PK, fecha TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, usuario T
 ```
 Campos de un tipo: `[{"nombre": str, "tipo": "texto|numero|fecha|booleano|lista", "obligatorio": bool}]`.
 
-## Módulos (`nodos/`)
-- `db.py`: `conectar(ruta=":memory:")` devuelve una `sqlite3.Connection` con `row_factory = sqlite3.Row`
-  y `PRAGMA foreign_keys = ON`. `crear_esquema(conn)` ejecuta `esquema.sql` y es idempotente.
-- `lotes.py`: `validar_contenido(campos, contenido)` → `list[str]` de errores.
-- `repositorio.py`: todas las operaciones. Cada escritura agrega una fila a `registro` y hace `commit()`.
-  Los errores de uso lanzan `ValueError`.
-- `app.py`: Flask con una API JSON y `templates/index.html`.
+## Arquitectura modular
+Pedido explícito: **todo en módulos, para poder quitar y agregar sin problemas.**
+- `nodos/nucleo/`: lo imprescindible. `db.py` (conectar, crear_esquema), `registro.py` (bitácora),
+  `validacion.py` (validar_contenido), `eventos.py` (suscribir/emitir) y `modulos.py` (cargar + dependencias).
+- `nodos/modulos/<nombre>/`: `__init__.py` (`DEPENDE_DE` + API pública), `servicio.py` (lógica),
+  `rutas.py` (Blueprint `bp`, opcional) y `esquema.sql` (opcional).
+- `nodos/config.py`: `MODULOS = ["tipos", "lotes", "relaciones", "grafo", "historial"]` (en orden de dependencias).
+- `nodos/app.py`: `crear_app(ruta_base, modulos)` registra el Blueprint de cada módulo activo bajo `/api`.
+  `ValueError` → 400.
+- `nodos/repositorio.py`: una fachada que reexporta las funciones de los módulos activos.
+- La página oculta los formularios de los módulos inactivos.
+- Desacople con eventos: `lotes` emite `lote_borrado` y `relaciones` se suscribe para quitar las flechas.
+
+| Módulo | Depende de | Tabla |
+|---|---|---|
+| tipos | — | tipos_lote |
+| lotes | tipos | lotes |
+| relaciones | lotes | relaciones |
+| grafo | lotes, relaciones | — |
+| historial | — | registro (del núcleo) |
 
 ## Repositorio: contrato
 | Función | Devuelve | Registro (`accion`) |
